@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#d3eee0">
+  <meta name="description" content="Wake a sleepy forest and befriend its little animals in a cozy 3D adventure.">
+  <title>Lucky Panda · Wildbloom Woods</title>
+</head>
+<body>
+  <main class="game" aria-label="Lucky Panda">
+    <div id="stage"></div>
+    <div class="screen-wash" aria-hidden="true"></div>
+
+    <header class="brand">
+      <div class="brand-mark" data-icon="sprout"></div>
+      <h1>Lucky Panda<span>Wildbloom Woods</span></h1>
+    </header>
+
+    <section class="party paper" aria-label="Animal friends">
+      <div class="party-heading"><span data-icon="heart"></span><h2>Animal Friends</h2><span id="friend-count">0/3</span></div>
+      <div id="friends"></div>
+    </section>
+
+    <div class="utilities">
+      <button class="round paper" type="button" id="sound" title="Sound (M)" aria-label="Sound" aria-pressed="true"></button>
+      <button class="round paper" type="button" id="help" title="How to play" aria-label="How to play"><span data-icon="help"></span></button>
+    </div>
+
+    <section class="quest paper" aria-labelledby="quest-title">
+      <div class="quest-heading"><span class="quest-flower" data-icon="flower"></span><div><p>Forest journal</p><h2 id="quest-title">Restore the forest</h2></div><span id="progress-number">0 / 5</span></div>
+      <div id="progress" role="progressbar" aria-label="Forest restored" aria-valuemin="0" aria-valuemax="5" aria-valuenow="0"></div>
+      <div class="quest-step">
+        <span class="step-icon" data-icon="compass"></span>
+        <div><strong id="objective">Seedling Circle</strong><p id="objective-detail">Follow the golden trail to the grey patch.</p></div>
+      </div>
+    </section>
+
+    <div id="world-marker" aria-hidden="true" hidden><span data-icon="sparkles"></span><b></b><i></i></div>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+
+    <div class="desktop-controls" aria-label="Keyboard controls">
+      <div><kbd>W A S D</kbd><span>Move</span></div>
+      <div><kbd>Space</kbd><span>Plant / jump</span></div>
+      <button id="aim-shortcut" type="button" hidden><kbd>E</kbd><span>Aim seed</span></button>
+    </div>
+
+    <div class="touch-controls" aria-label="Touch controls">
+      <div class="dpad">
+        <button type="button" class="up" data-move="ArrowUp" aria-label="Move up" data-icon="up"></button>
+        <button type="button" class="left" data-move="ArrowLeft" aria-label="Move left" data-icon="left"></button>
+        <button type="button" class="down" data-move="ArrowDown" aria-label="Move down" data-icon="down"></button>
+        <button type="button" class="right" data-move="ArrowRight" aria-label="Move right" data-icon="right"></button>
+      </div>
+      <div class="touch-actions">
+        <button type="button" id="touch-aim" class="touch-action" hidden><span data-icon="target"></span>Aim</button>
+        <button type="button" id="touch-hop" class="touch-action hop"><span data-icon="sprout"></span>Plant / hop</button>
+      </div>
+    </div>
+
+    <section class="aim-panel paper" id="aim-panel" aria-label="Aim seed" hidden>
+      <div><span class="aim-symbol" data-icon="target"></span><div><strong>Skye’s Seed Toss</strong><p id="aim-hint">Aim at the island, then tap or click to toss.</p></div></div>
+      <button type="button" id="aim-cancel" class="round" aria-label="Cancel aiming" data-icon="close"></button>
+    </section>
+    <div id="reticle" aria-hidden="true" hidden data-icon="target"></div>
+
+    <dialog id="help-dialog" class="paper">
+      <span class="dialog-badge" data-icon="sprout"></span>
+      <h2>Grow a little magic</h2>
+      <p>Follow the golden trail and walk onto grey patches or plant a seed nearby. Walk up to the animals you find to make friends.</p>
+      <dl>
+        <div><dt>Move</dt><dd>WASD, arrow keys, or the on-screen arrows</dd></div>
+        <div><dt>Plant / hop</dt><dd>Space or the Plant / hop button</dd></div>
+        <div><dt>Pip the bunny</dt><dd>Double-tap jump to reach Mossy Lookout.</dd></div>
+        <div><dt>Bramble the bear</dt><dd>Walk up to fallen logs and Bramble clears them.</dd></div>
+        <div><dt>Skye the bird</dt><dd>Press E or tap Aim. Point at Petal Island and toss.</dd></div>
+      </dl>
+      <div class="dialog-actions"><button class="primary" id="close-help" type="button">Back to the woods</button><button class="plain" data-restart type="button">Start over</button></div>
+    </dialog>
+
+    <dialog id="win-dialog" class="paper">
+      <span class="dialog-badge win-badge" data-icon="flower"></span>
+      <h2>The woods are blooming!</h2>
+      <p>Five little patches, three new friends, and one very lucky panda.</p>
+      <div id="win-friends"></div>
+      <div class="dialog-actions"><button class="primary" id="keep-playing" type="button">Keep exploring</button><button class="plain" data-restart type="button">Play again</button></div>
+    </dialog>
+    <noscript>Enable JavaScript to play Lucky Panda.</noscript>
+  </main>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
