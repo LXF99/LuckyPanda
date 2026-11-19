@@ -125,6 +125,29 @@ dialog dd { margin: 0; color: var(--muted); }
 .plain { background: #ecefdb; }
 #win-friends { display: flex; gap: 6px; }
 #win-friends .avatar { border: 0; background: var(--friend-color); }
+
+#scene-transition { position: absolute; inset: 0; z-index: 6; background: #fff4d5; opacity: 0; pointer-events: none; }
+[data-scene='grove'] #scene-transition { background: #454570; }
+[data-scene='grove'] .brand-mark { background: #515282; color: #fff1c0; border-color: #e5e0fb; }
+[data-scene='grove'] h1 { color: #fff6df; text-shadow: 0 2px 0 #2e2a53a6; }
+[data-scene='grove'] h1 span { color: #e3defb; }
+[data-scene='grove'] .quest-flower { background: #ede6f6; color: #695a85; }
+[data-scene='grove'] .quest-step { background: #f2ebf4; }
+[data-scene='grove'] #progress .filled { background: #88a79d; }
+[data-scene='grove'] #world-marker { background: #f8ebff; color: #4f4366; }
+[data-scene='grove'] #world-marker span { color: #7665a1; }
+
+.scene-choices { display: grid; gap: 9px; margin-top: 16px; }
+.scene-choice { display: flex; align-items: center; text-align: left; gap: 12px; padding: 10px 12px; width: 100%; border: 1px solid #dce4cb; border-radius: 15px; background: #ecf1dd; }
+.scene-choice:hover { background: #e6efd3; }
+.scene-choice[data-scene-choice='grove'] { background: #f0e9f7; border-color: #e5d9f0; color: #4f4265; }
+.scene-choice[data-scene-choice='grove']:hover { background: #eae0f3; }
+.scene-choice[aria-current='location'] { box-shadow: inset 0 0 0 1px currentColor; }
+.scene-choice strong { display: block; font-size: 15px; font-weight: 950; }
+.scene-choice small { display: block; font-size: 12px; line-height: 1.25; }
+.scene-choice .scene-progress { margin-top: 4px; font-size: 10px; font-weight: 950; }
+.scene-icon { display: block; width: 47px; height: 47px; flex: 0 0 47px; border-radius: 13px; padding: 11px; background: #f5e4a7; color: #7e5b24; }
+[data-scene-choice='grove'] .scene-icon { background: #dcd2ef; color: #62538a; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
 @media (pointer: coarse), (max-width: 680px) {
@@ -187,6 +210,11 @@ dialog dd { margin: 0; color: var(--muted); }
   .party { left: 14px; }
   .quest, .utilities { right: 14px; }
   .utilities { top: 10px; }
+}
+@media (max-width: 375px) {
+  h1 { font-size: clamp(22px, 7.5vw, 28px); }
+  .brand-mark { width: 31px; height: 31px; }
+  .utilities .round { width: 33px; height: 33px; padding: 7px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; }

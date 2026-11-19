@@ -3,6 +3,7 @@ import './style.css';
 import { animalIcon, icon } from './icons.js';
 import { animal, groupAt, lump, panda } from './models.js';
 import { landscape } from './landscape.js';
+import { canWalkInGrove, createMoonGrove, glowingSoil, moonGrove, sleepingSoil } from './moon-grove.js';
 import { effects, shadow, sprite } from './effects.js';
 import { createSound } from './sound.js';
 import { canEnter, canRestore, chooseJump, friends, log, patches, riverEdge, start, surfaceHeight } from './world.js';
@@ -12,6 +13,7 @@ const game = $('.game');
 const stage = $('#stage');
 const help = $('#help-dialog');
 const win = $('#win-dialog');
+const sceneDialog = $('#scene-dialog');
 const sound = createSound();
 
 document.querySelectorAll('[data-icon]').forEach((element) => {
@@ -115,14 +117,26 @@ function run(renderer) {
 
   const keys = new Set();
   const touches = new Map();
-  const restored = new Set();
+  const woods = {
+    id: 'woods', name: 'Wildbloom Woods', start, patches, scene, sections, magic,
+    journal: 'Forest journal', objective: 'Restore the forest', finish: 'The woods are blooming!',
+    finishDetail: 'Five little patches, three new friends, and one very lucky panda.',
+    restored: new Set(), savedPosition: null, wonAt: -1, winShown: false,
+  };
+  const grove = {
+    id: 'grove', name: 'Mooncap Grove', start: moonGrove.start, patches: moonGrove.patches,
+    journal: 'Moonlight journal', objective: 'Wake the gardens', finish: 'The grove is glowing!',
+    finishDetail: 'Three night gardens are shining under the moon.',
+    restored: new Set(), savedPosition: null, wonAt: -1, winShown: false,
+  };
+  const worlds = { woods, grove };
+  let currentWorld = woods;
+  const restored = woods.restored;
   let elapsed = 0;
   let jumpAt = -1;
   let boosted = false;
   let lift = 0;
   let logClearAt = -1;
-  let wonAt = -1;
-  let winShown = false;
   let lastPlant = -9;
   let bounceAt = -5;
   let launch = null;
@@ -144,12 +158,19 @@ function run(renderer) {
   const markerNode = $('#world-marker');
   const markerText = markerNode.querySelector('b');
 
-  const isWith = (type) => companions[type].state === 'joined';
-  const ground = () => surfaceHeight(position.x, position.z);
+  const inWoods = () => currentWorld === woods;
+  const isWith = (type) => inWoods() && companions[type].state === 'joined';
+  const terrainHeight = (x, z) => inWoods() ? surfaceHeight(x, z) : 0;
+  const ground = () => terrainHeight(position.x, position.z);
   const openPath = () => logClearAt >= 0;
   const aimingDistance = () => Math.hypot(position.x - patches[4].x, position.z - patches[4].z) < 12.5;
 
   function currentStep() {
+    if (!inWoods()) {
+      const patch = grove.patches.find((item) => !grove.restored.has(item.id));
+      if (patch) return patchStep(patch, 'Follow the lights and wake the sleepy garden.');
+      return { title: grove.finish, detail: 'Keep exploring or open the map to travel.' };
+    }
     for (const [type, friend] of friendEntries) {
       const companion = companions[type];
       if (companion.state === 'waiting') {
@@ -159,22 +180,21 @@ function run(renderer) {
         };
       }
     }
-    if (!restored.has('seedling')) return patchStep(0, 'Follow the golden trail to the grey patch.');
-    if (!restored.has('clover')) return patchStep(1, 'Grow flowers in the hollow to find a bear.');
+    if (!restored.has('seedling')) return patchStep(patches[0], 'Follow the golden trail to the grey patch.');
+    if (!restored.has('clover')) return patchStep(patches[1], 'Grow flowers in the hollow to find a bear.');
     if (!restored.has('fern')) {
       if (!openPath()) return { title: 'Open Fern Path', detail: 'Walk up to the logs with Bramble.', x: log.x, z: log.z + .83, y: .03, radius: 1.45 };
-      return patchStep(2, 'Follow the open path to find a bird.', [{ x: log.x, z: -8.35 }]);
+      return patchStep(patches[2], 'Follow the open path to find a bird.', [{ x: log.x, z: -8.35 }]);
     }
-    if (!restored.has('moss')) return patchStep(3, 'Double-tap jump while moving toward the ledge.', [{ x: 1.55, z: -4.6 }]);
+    if (!restored.has('moss')) return patchStep(patches[3], 'Double-tap jump while moving toward the ledge.', [{ x: 1.55, z: -4.6 }]);
     if (!restored.has('island')) {
       if (!aimingDistance() && !launch) return { title: 'Find the riverbank', detail: 'Follow the lights to a spot in seed-tossing range.', x: 6.55, z: -2.7, y: .03, radius: 1.35 };
-      return patchStep(4, launch ? 'Watch your seed fly!' : 'Press E or tap Aim to toss a seed across.');
+      return patchStep(patches[4], launch ? 'Watch your seed fly!' : 'Press E or tap Aim to toss a seed across.');
     }
     return { title: 'The woods are blooming!', detail: 'Explore with your new friends.' };
   }
 
-  function patchStep(index, detail, waypoints = []) {
-    const p = patches[index];
+  function patchStep(p, detail, waypoints = []) {
     return { title: p.name, detail, x: p.x, y: p.height + .035, z: p.z, radius: p.radius * .62, waypoints };
   }
 
@@ -202,20 +222,24 @@ function run(renderer) {
   }
 
   function showProgress() {
-    $('#progress-number').textContent = `${restored.size} / ${patches.length}`;
-    $('#progress').setAttribute('aria-valuenow', restored.size);
-    $('#progress').innerHTML = patches.map((patch) => `<span class="${restored.has(patch.id) ? 'filled' : ''}"></span>`).join('');
+    const { patches: places, restored: progress } = currentWorld;
+    const meter = $('#progress');
+    $('#progress-number').textContent = `${progress.size} / ${places.length}`;
+    meter.setAttribute('aria-valuemax', places.length);
+    meter.setAttribute('aria-valuenow', progress.size);
+    meter.innerHTML = places.map((patch) => `<span class="${progress.has(patch.id) ? 'filled' : ''}"></span>`).join('');
   }
 
   function restore(section) {
     const p = section.patch;
-    if (restored.has(p.id)) return;
-    restored.add(p.id);
+    const { restored: progress, patches: places } = currentWorld;
+    if (progress.has(p.id)) return;
+    progress.add(p.id);
     section.grown = elapsed;
     section.sleeping.visible = section.cracked.visible = false;
     section.growth.visible = true;
     showProgress();
-    magic.burst(p.x, p.height + .21, p.z, 38, 'star', p.radius * 1.32);
+    currentWorld.magic.burst(p.x, p.height + .21, p.z, 38, 'star', p.radius * 1.32);
     sound.play('bloom');
     bounceAt = elapsed;
     if (p.friend) {
@@ -228,7 +252,7 @@ function run(renderer) {
       showParty();
       notify(`${info.name} peeked out!`, `Walk up to meet the little ${info.species.toLowerCase()}.`, p.friend);
     } else {
-      notify(`${p.name} is blooming!`, `${restored.size} of ${patches.length} patches restored.`, 'flower');
+      notify(`${p.name} is blooming!`, `${progress.size} of ${places.length} ${inWoods() ? 'patches restored' : 'gardens awake'}.`, 'flower');
     }
     checkWin();
   }
@@ -246,24 +270,34 @@ function run(renderer) {
   }
 
   function checkWin() {
-    if (wonAt >= 0 || restored.size !== patches.length || !friendEntries.every(([type]) => isWith(type))) return;
-    wonAt = elapsed;
+    if (currentWorld.wonAt >= 0 || currentWorld.restored.size !== currentWorld.patches.length) return;
+    if (inWoods() && !friendEntries.every(([type]) => isWith(type))) return;
+    currentWorld.wonAt = elapsed;
     sound.play('win');
-    for (const [type] of friendEntries) companions[type].joinTime = elapsed;
-    magic.burst(position.x, 1.1, position.z, 38, 'heart', 1.5);
+    if (inWoods()) {
+      for (const [type] of friendEntries) companions[type].joinTime = elapsed;
+    }
+    currentWorld.magic.burst(position.x, 1.1, position.z, 38, inWoods() ? 'heart' : 'star', 1.5);
   }
 
-  const grassColor = new THREE.Color('#88ae70');
-  const greyColor = new THREE.Color('#a1a198');
+  woods.soil = new THREE.Color('#a1a198');
+  woods.bloomSoil = new THREE.Color('#88ae70');
+  grove.soil = new THREE.Color(sleepingSoil);
+  grove.bloomSoil = new THREE.Color(glowingSoil);
   function updateLand(dt) {
-    for (const section of sections) {
+    for (const section of currentWorld.sections) {
+      const { patch } = section;
+      if (!currentWorld.restored.has(patch.id) &&
+          canRestore(patch, position.x, position.z, position.y, patch.radius * .72, openPath())) restore(section);
       if (section.grown < 0) continue;
       const age = Math.min(1, (elapsed - section.grown) / .94);
       if (age >= 1 && section.growth.scale.y === 1) continue;
       section.growth.scale.y = 1 - Math.pow(1 - age, 3) * Math.cos(age * 6.9);
-      section.greyGround.color.copy(greyColor).lerp(grassColor, age);
-      sun.shadow.needsUpdate = true;
+      section.greyGround.color.copy(currentWorld.soil).lerp(currentWorld.bloomSoil, age);
+      if (inWoods()) sun.shadow.needsUpdate = true;
+      else section.greyGround.emissiveIntensity = age * .21;
     }
+    if (!inWoods()) return;
     if (openPath() && logs.visible) {
       const progress = (elapsed - logClearAt) / .72;
       if (progress > 1) logs.visible = false;
@@ -283,9 +317,6 @@ function run(renderer) {
       sound.play('clear');
       magic.burst(log.x, .57, log.z, 30, 'star', 2.7);
       notify('Bramble cleared the way!', 'Fern Hideaway is just up the path.', 'bear');
-    }
-    for (const section of sections) {
-      if (!restored.has(section.patch.id) && canRestore(section.patch, position.x, position.z, position.y, section.patch.radius * .72, openPath())) restore(section);
     }
     if (launch) {
       launch.t = Math.min(1, launch.t + dt / .86);
@@ -315,16 +346,16 @@ function run(renderer) {
     const grounded = position.y <= ground() + .052 && lift <= 0;
     const action = chooseJump({ grounded, bunny: isWith('bunny'), elapsed: elapsed - jumpAt, boosted });
     if (grounded && elapsed - lastPlant >= .35) {
-      const nearby = sections.find(({ patch }) =>
-        !restored.has(patch.id) && canRestore(patch, position.x, position.z, position.y, patch.radius + .55, openPath()));
+      const nearby = currentWorld.sections.find(({ patch }) =>
+        !currentWorld.restored.has(patch.id) && canRestore(patch, position.x, position.z, position.y, patch.radius + .55, openPath()));
       if (nearby) {
         lastPlant = elapsed;
-        magic.burst(position.x, .32 + ground(), position.z, 12, 'star', .6);
+        currentWorld.magic.burst(position.x, .32 + ground(), position.z, 12, 'star', .6);
         restore(nearby);
       } else {
         if (elapsed - lastPlant > .6) {
           lastPlant = elapsed;
-          magic.burst(position.x, .22 + ground(), position.z, 8, 'glow', .57);
+          currentWorld.magic.burst(position.x, .22 + ground(), position.z, 8, 'glow', .57);
         }
         sound.play('hop');
       }
@@ -340,6 +371,10 @@ function run(renderer) {
       sound.play('boost');
       magic.burst(position.x, position.y + .23, position.z, 17, 'star', .64);
     }
+  }
+
+  function canMoveTo(x, z) {
+    return inWoods() ? canEnter(x, z, position.y, openPath()) : canWalkInGrove(x, z);
   }
 
   function updatePlayer(dt) {
@@ -359,8 +394,8 @@ function run(renderer) {
     }
     const nextX = position.x + movement.x * dt;
     const nextZ = position.z + movement.y * dt;
-    if (canEnter(nextX, position.z, position.y, openPath())) position.x = nextX;
-    if (canEnter(position.x, nextZ, position.y, openPath())) position.z = nextZ;
+    if (canMoveTo(nextX, position.z)) position.x = nextX;
+    if (canMoveTo(position.x, nextZ)) position.z = nextZ;
     const floor = ground();
     if (position.y < floor) {
       position.y = floor;
@@ -447,13 +482,13 @@ function run(renderer) {
     const viewZ = portrait ? 19.7 : 17.4;
     cameraGoal.set(cameraAnchor.x + pan, viewY + cameraAnchor.y * .38, cameraAnchor.z + viewZ);
     camera.position.lerp(cameraGoal, 1 - Math.exp(-dt * 5));
-    viewPoint.set(camera.position.x, .75 + cameraAnchor.y * .36, camera.position.z - viewZ - (portrait ? 4.9 : 5.55));
+    viewPoint.set(camera.position.x, (inWoods() ? .75 : 1.38) + cameraAnchor.y * .36, camera.position.z - viewZ - (portrait ? 4.9 : 5.55));
     camera.lookAt(viewPoint);
     camera.updateMatrixWorld();
   }
 
   function guideTrail(step) {
-    if (!Number.isFinite(step.x) || aim || launch) return [];
+    if (!Number.isFinite(step.x) || aim || (inWoods() && launch)) return [];
     if (step.title === 'Petal Island') return [];
     const points = [];
     const origin = { x: position.x, z: position.z };
@@ -461,7 +496,7 @@ function run(renderer) {
     if (mid && (Math.hypot(mid.x - origin.x, mid.z - origin.z) < .45 ||
         (step.title === 'Fern Hideaway' && position.z < -8.65) ||
         (step.title === 'Mossy Lookout' && position.z < -4.7))) mid = null;
-    if (position.z < -8.75 && position.x < -2.8 && step.title !== 'Fern Hideaway' && !step.friend) {
+    if (inWoods() && position.z < -8.75 && position.x < -2.8 && step.title !== 'Fern Hideaway' && !step.friend) {
       mid = { x: log.x, z: -7.1 };
     }
     const destinations = mid ? [mid, step] : [step];
@@ -473,7 +508,7 @@ function run(renderer) {
         const t = i / count;
         const x = THREE.MathUtils.lerp(previous.x, next.x, t);
         const z = THREE.MathUtils.lerp(previous.z, next.z, t);
-        points.push({ x, y: surfaceHeight(x, z) + .27, z });
+        points.push({ x, y: terrainHeight(x, z) + .27, z });
       }
       previous = next;
     }
@@ -581,51 +616,114 @@ function run(renderer) {
     renderer.setSize(w, h, false);
   }
 
-  function reset() {
-    restored.clear();
-    elapsed = 0;
+  function clearInputs() {
+    keys.clear();
+    touches.clear();
+    movement.set(0, 0);
+  }
+
+  function placePlayer(location) {
     jumpAt = -1;
     boosted = false;
     lift = 0;
-    logClearAt = wonAt = -1;
-    winShown = false;
-    magic.reset();
-    sun.shadow.needsUpdate = true;
     lastPlant = -9;
     bounceAt = -5;
-    launch = null;
     lastMoveAt = -9;
     footstep = 0;
     yaw = -.30;
-    position.set(start.x, 0, start.z);
+    position.set(location.x, terrainHeight(location.x, location.z), location.z);
     cameraAnchor.copy(position);
-    movement.set(0, 0);
-    seed.visible = false;
-    logs.visible = true;
-    logs.position.set(log.x, 0, log.z);
-    logs.rotation.y = 0;
-    logs.scale.setScalar(1);
-    for (const section of sections) {
+    clearInputs();
+    stopAiming();
+    drawCamera(10);
+    updatePlayer(0);
+  }
+
+  function showWorld() {
+    game.dataset.scene = currentWorld.id;
+    $('#scene-name').textContent = currentWorld.name;
+    $('#journal-name').textContent = currentWorld.journal;
+    $('#quest-title').textContent = currentWorld.objective;
+    $('#progress').setAttribute('aria-label', inWoods() ? 'Forest restored' : 'Gardens awake');
+    canvas.setAttribute('aria-label', `${currentWorld.name} 3D game`);
+    document.title = `Lucky Panda · ${currentWorld.name}`;
+    party.closest('.party').hidden = !inWoods();
+    $('#win-friends').hidden = !inWoods();
+    win.querySelector('h2').textContent = currentWorld.finish;
+    win.querySelector('p').textContent = currentWorld.finishDetail;
+    document.querySelectorAll('[data-woods-help]').forEach((item) => { item.hidden = !inWoods(); });
+    $('#toast').classList.remove('visible');
+    showParty();
+    showProgress();
+    const step = currentStep();
+    showStep(step);
+    showMarker(step);
+  }
+
+  function switchScene(destination) {
+    if (destination === currentWorld) {
+      sceneDialog.close();
+      return;
+    }
+    if (!destination.scene) Object.assign(destination, createMoonGrove());
+    currentWorld.savedPosition = { x: position.x, z: position.z };
+    currentWorld = destination;
+    destination.scene.add(player.rig, footprint);
+    placePlayer(destination.savedPosition || destination.start);
+    showWorld();
+    sceneDialog.close();
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const curtain = $('#scene-transition');
+      curtain.getAnimations().forEach((animation) => animation.cancel());
+      curtain.animate([{ opacity: .98 }, { opacity: 0 }], { duration: 420, easing: 'ease-out' });
+    }
+  }
+
+  function openScenes() {
+    clearInputs();
+    for (const button of sceneDialog.querySelectorAll('[data-scene-choice]')) {
+      const world = worlds[button.dataset.sceneChoice];
+      if (world === currentWorld) button.setAttribute('aria-current', 'location');
+      else button.removeAttribute('aria-current');
+      button.querySelector('.scene-progress').textContent =
+        `${world.restored.size} / ${world.patches.length} restored${world === currentWorld ? ' · Here now' : ''}`;
+    }
+    sceneDialog.showModal();
+  }
+
+  function reset() {
+    currentWorld.restored.clear();
+    currentWorld.savedPosition = null;
+    currentWorld.wonAt = -1;
+    currentWorld.winShown = false;
+    currentWorld.magic.reset();
+    for (const section of currentWorld.sections) {
       section.grown = -1;
-      section.greyGround.color.copy(greyColor);
+      section.greyGround.color.copy(currentWorld.soil);
+      if (!inWoods()) section.greyGround.emissiveIntensity = 0;
       section.sleeping.visible = section.cracked.visible = true;
       section.growth.visible = false;
       section.growth.scale.y = .015;
     }
-    for (const [type] of friendEntries) {
-      const buddy = companions[type];
-      buddy.state = 'locked';
-      buddy.rig.visible = buddy.shade.visible = false;
-      buddy.age = 0;
-      buddy.joinTime = -10;
+    if (inWoods()) {
+      logClearAt = -1;
+      launch = null;
+      seed.visible = false;
+      logs.visible = true;
+      logs.position.set(log.x, 0, log.z);
+      logs.rotation.y = 0;
+      logs.scale.setScalar(1);
+      sun.shadow.needsUpdate = true;
+      for (const [type] of friendEntries) {
+        const buddy = companions[type];
+        buddy.state = 'locked';
+        buddy.rig.visible = buddy.shade.visible = false;
+        buddy.age = 0;
+        buddy.joinTime = -10;
+      }
     }
-    $('#toast').classList.remove('visible');
-    stopAiming();
-    keys.clear();
-    touches.clear();
-    showParty();
-    showProgress();
-    drawCamera(10);
+    placePlayer(currentWorld.start);
+    showWorld();
     if (help.open) help.close();
     if (win.open) win.close();
     canvas.focus({ preventScroll: true });
@@ -637,15 +735,15 @@ function run(renderer) {
   }
 
   function openHelp() {
-    keys.clear();
-    touches.clear();
-    movement.set(0, 0);
+    clearInputs();
     help.showModal();
   }
 
+  const dialogOpen = () => help.open || win.open || sceneDialog.open;
+
   const movementCodes = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight'];
   window.addEventListener('keydown', (event) => {
-    if (help.open || win.open || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (dialogOpen() || event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.code === 'Escape') {
       if (aim) stopAiming();
       else openHelp();
@@ -658,6 +756,7 @@ function run(renderer) {
       return;
     }
     if (event.repeat) return;
+    if (event.code === 'KeyG') openScenes();
     if (event.code === 'KeyM') toggleSound();
     if (event.code === 'KeyE') toggleAim();
     if (event.code === 'Space' && !event.target.closest?.('button')) {
@@ -735,10 +834,23 @@ function run(renderer) {
     toggleSound();
     canvas.focus({ preventScroll: true });
   });
+  $('#scenes').addEventListener('click', openScenes);
+  $('#close-scenes').addEventListener('click', () => sceneDialog.close());
+  sceneDialog.querySelectorAll('[data-scene-choice]').forEach((button) => {
+    button.addEventListener('click', () => switchScene(worlds[button.dataset.sceneChoice]));
+  });
+  $('#win-scenes').addEventListener('click', () => {
+    win.close();
+    openScenes();
+  });
   $('#help').addEventListener('click', openHelp);
   $('#close-help').addEventListener('click', () => help.close());
   $('#keep-playing').addEventListener('click', () => win.close());
-  for (const dialog of [help, win]) dialog.addEventListener('close', () => canvas.focus({ preventScroll: true }));
+  for (const dialog of [help, win, sceneDialog]) {
+    dialog.addEventListener('close', () => {
+      if (!dialogOpen()) canvas.focus({ preventScroll: true });
+    });
+  }
   document.querySelectorAll('[data-restart]').forEach((button) => button.addEventListener('click', reset));
   canvas.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
@@ -751,23 +863,21 @@ function run(renderer) {
   renderer.setAnimationLoop((now) => {
     const dt = Math.min(.048, Math.max(0, (now - lastFrame) / 1000));
     lastFrame = now;
-    if (help.open || win.open) return;
+    if (dialogOpen()) return;
     elapsed += dt;
     updatePlayer(dt);
     updateLand(dt);
-    updateFriends(dt);
+    if (inWoods()) updateFriends(dt);
     drawCamera(dt);
     const step = currentStep();
     showStep(step);
     showMarker(step);
     showReticle();
-    magic.update(dt, elapsed, Number.isFinite(step.x) ? step : null, guideTrail(step));
-    renderer.render(scene, camera);
-    if (!winShown && wonAt >= 0 && elapsed - wonAt >= .92) {
-      winShown = true;
-      keys.clear();
-      touches.clear();
-      movement.set(0, 0);
+    currentWorld.magic.update(dt, elapsed, Number.isFinite(step.x) ? step : null, guideTrail(step));
+    renderer.render(currentWorld.scene, camera);
+    if (!currentWorld.winShown && currentWorld.wonAt >= 0 && elapsed - currentWorld.wonAt >= .92) {
+      currentWorld.winShown = true;
+      clearInputs();
       win.showModal();
     }
   });

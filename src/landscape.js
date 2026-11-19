@@ -9,7 +9,7 @@ const stones = ['#b4ad96', '#c4bba3', '#9eaa9d', '#c5c8b4'];
 const rand = randomSource(172);
 const pick = (array) => array[Math.floor(rand() * array.length)];
 
-function flat(parent, points, y, color) {
+export function flat(parent, points, y, color) {
   const shape = new THREE.Shape();
   points.forEach(([x, z], i) => i === 0 ? shape.moveTo(x, -z) : shape.lineTo(x, -z));
   const plane = mesh(parent, new THREE.ShapeGeometry(shape), color, 0, y, 0, 1, 1, 1);
@@ -18,7 +18,7 @@ function flat(parent, points, y, color) {
   return plane;
 }
 
-function contour(x, z, rx, rz, count, phase = 0, wobble = .07) {
+export function contour(x, z, rx, rz, count, phase = 0, wobble = .07) {
   return Array.from({ length: count }, (_, i) => {
     const a = i * TAU / count;
     const rad = 1 + wobble * Math.sin(a * 5 + phase) + wobble * .45 * Math.cos(a * 8 - phase);
@@ -32,7 +32,7 @@ function rock(parent, x, y, z, size, color = pick(stones)) {
   return piece;
 }
 
-function ribbon(parent, centerPoints, halfWidth, y, color) {
+export function ribbon(parent, centerPoints, halfWidth, y, color) {
   const spline = new THREE.CatmullRomCurve3(centerPoints.map(([x, z]) => new THREE.Vector3(x, 0, z)));
   const points = spline.getPoints(60);
   const left = [];
